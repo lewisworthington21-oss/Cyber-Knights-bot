@@ -261,7 +261,7 @@ async function generateAnnouncement({
     const response = await openai.responses.create({
         model:
             process.env.OPENAI_ANNOUNCE_MODEL ||
-            'gpt-5.6-mini',
+            'gpt-5.6-luna'
 
         instructions: `
 You write announcements for Cyber Knights, a serious competitive TH18 Clash of Clans esports organisation.
