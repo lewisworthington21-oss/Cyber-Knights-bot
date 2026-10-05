@@ -5,9 +5,9 @@ export const botConfig = {
   // BOT PRESENCE (what users see under the bot name)
   // =========================
   // `status` options:
-  // - "online"    = green dot
-  // - "idle"      = yellow moon
-  // - "dnd"       = red do-not-disturb
+  // - "Normal operations"    = green dot
+  // - "No active Tournaments"      = yellow moon
+  // - "CK is currently in a match"       = red do-not-disturb
   // - "invisible" = appears offline
   presence: {
     // Current online state shown on Discord.
@@ -141,7 +141,7 @@ export const botConfig = {
     },
     footer: {
       // Default footer text used in bot embeds.
-      text: "Titan Bot",
+      text: "CK Bot",
       // Footer icon URL (null = no icon).
       icon: null,
     },
