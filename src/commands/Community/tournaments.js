@@ -31,10 +31,6 @@ const STATUS_META = {
 
 const DEFAULT_TIMEZONE = 'Europe/London';
 
-/*
- * Discord allows a maximum of 10 embeds in one message.
- * The hub automatically splits tournaments into batches.
- */
 const MAX_EMBEDS_PER_MESSAGE = 10;
 
 /* -------------------------------------------------------------------------- */
@@ -75,7 +71,6 @@ function parseDateInput(input) {
 
     const value = input.trim();
 
-    // YYYY-MM-DD
     let match = value.match(
         /^(\d{4})-(\d{1,2})-(\d{1,2})$/
     );
@@ -92,7 +87,6 @@ function parseDateInput(input) {
         return null;
     }
 
-    // DD/MM/YYYY or DD-MM-YYYY
     match = value.match(
         /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/
     );
@@ -109,7 +103,6 @@ function parseDateInput(input) {
         return null;
     }
 
-    // 8 October 2026 / 8 Oct 2026
     match = value.match(
         /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/
     );
@@ -118,7 +111,6 @@ function parseDateInput(input) {
         const day = Number(match[1]);
         const monthName = match[2].toLowerCase();
         const year = Number(match[3]);
-
         const month = MONTHS[monthName];
 
         if (
@@ -138,11 +130,7 @@ function parseDateInput(input) {
     return null;
 }
 
-function isValidDateParts(
-    year,
-    month,
-    day
-) {
+function isValidDateParts(year, month, day) {
     if (
         !Number.isInteger(year) ||
         !Number.isInteger(month) ||
@@ -217,10 +205,8 @@ function parseTimeInput(input) {
             if (hour === 12) {
                 hour = 0;
             }
-        } else {
-            if (hour !== 12) {
-                hour += 12;
-            }
+        } else if (hour !== 12) {
+            hour += 12;
         }
     } else if (hour > 23) {
         return null;
@@ -248,10 +234,7 @@ function isValidTimeZone(timeZone) {
     }
 }
 
-function getZonedParts(
-    timestampMs,
-    timeZone
-) {
+function getZonedParts(timestampMs, timeZone) {
     const formatter =
         new Intl.DateTimeFormat(
             'en-US',
@@ -357,18 +340,14 @@ function zonedDateTimeToUnix(
         const nextUtcMs =
             naiveUtcMs - offset;
 
-        if (
-            nextUtcMs === utcMs
-        ) {
+        if (nextUtcMs === utcMs) {
             break;
         }
 
         utcMs = nextUtcMs;
     }
 
-    return Math.floor(
-        utcMs / 1000
-    );
+    return Math.floor(utcMs / 1000);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -393,17 +372,12 @@ function getStatusMeta(status) {
     );
 }
 
-function truncate(
-    text,
-    maxLength
-) {
+function truncate(text, maxLength) {
     if (!text) {
         return '';
     }
 
-    if (
-        text.length <= maxLength
-    ) {
+    if (text.length <= maxLength) {
         return text;
     }
 
@@ -419,14 +393,10 @@ function validateUrl(input) {
     }
 
     try {
-        const url =
-            new URL(input);
+        const url = new URL(input);
 
         if (
-            ![
-                'http:',
-                'https:',
-            ].includes(
+            !['http:', 'https:'].includes(
                 url.protocol
             )
         ) {
@@ -439,9 +409,7 @@ function validateUrl(input) {
     }
 }
 
-function normalizeTournament(
-    tournament
-) {
+function normalizeTournament(tournament) {
     return {
         id:
             tournament.id ||
@@ -522,21 +490,14 @@ function normalizeTournament(
     };
 }
 
-async function getTournaments(
-    client,
-    guildId
-) {
+async function getTournaments(client, guildId) {
     const tournaments =
         await client.db.get(
             TOURNAMENTS_KEY(guildId),
             []
         );
 
-    if (
-        !Array.isArray(
-            tournaments
-        )
-    ) {
+    if (!Array.isArray(tournaments)) {
         return [];
     }
 
@@ -556,9 +517,7 @@ async function saveTournaments(
     );
 }
 
-function sortTournaments(
-    tournaments
-) {
+function sortTournaments(tournaments) {
     const statusOrder = {
         live: 0,
         upcoming: 1,
@@ -568,14 +527,10 @@ function sortTournaments(
     return [...tournaments].sort(
         (a, b) => {
             const statusDifference =
-                (statusOrder[a.status] ??
-                    99) -
-                (statusOrder[b.status] ??
-                    99);
+                (statusOrder[a.status] ?? 99) -
+                (statusOrder[b.status] ?? 99);
 
-            if (
-                statusDifference !== 0
-            ) {
+            if (statusDifference !== 0) {
                 return statusDifference;
             }
 
@@ -614,9 +569,7 @@ function sortTournaments(
     );
 }
 
-function getTournamentSchedule(
-    tournament
-) {
+function getTournamentSchedule(tournament) {
     if (!tournament.startAt) {
         if (tournament.date) {
             return `📅 **Date:** ${tournament.date}`;
@@ -626,15 +579,9 @@ function getTournamentSchedule(
     }
 
     const timestamp =
-        Number(
-            tournament.startAt
-        );
+        Number(tournament.startAt);
 
-    if (
-        !Number.isFinite(
-            timestamp
-        )
-    ) {
+    if (!Number.isFinite(timestamp)) {
         return tournament.date
             ? `📅 **Date:** ${tournament.date}`
             : '📅 **Date:** TBC';
@@ -662,14 +609,11 @@ function getTournamentSchedule(
 
     return [
         `📅 **Started:** <t:${timestamp}:F>`,
-        `🏁 **Tournament:** Completed`,
+        '🏁 **Tournament:** Completed',
     ].join('\n');
 }
 
-function findTournament(
-    tournaments,
-    id
-) {
+function findTournament(tournaments, id) {
     if (!id) {
         return -1;
     }
@@ -685,15 +629,7 @@ function findTournament(
 /*                           TOURNAMENT CARD                                  */
 /* -------------------------------------------------------------------------- */
 
-/*
- * Every tournament gets its OWN embed.
- *
- * This is what allows every tournament to have its
- * own logo thumbnail.
- */
-function buildTournamentEmbed(
-    tournament
-) {
+function buildTournamentEmbed(tournament) {
     const meta =
         getStatusMeta(
             tournament.status
@@ -736,9 +672,9 @@ function buildTournamentEmbed(
             });
 
     /*
-     * IMPORTANT:
-     * The tournament logo is now attached to the
-     * individual tournament embed.
+     * Each tournament has its own embed,
+     * which means each tournament can have
+     * its own thumbnail/logo.
      */
     if (tournament.logo) {
         embed.setThumbnail(
@@ -768,11 +704,6 @@ function buildTournamentEmbed(
         });
     }
 
-    /*
-     * Show a clickable logo link as a fallback.
-     * If Discord cannot render the image thumbnail,
-     * users can still open the logo URL.
-     */
     if (tournament.logo) {
         embed.addFields({
             name: '🖼️ TOURNAMENT LOGO',
@@ -838,26 +769,13 @@ function buildTournamentEmbed(
 /*                         TOURNAMENT HUB EMBEDS                              */
 /* -------------------------------------------------------------------------- */
 
-/*
- * The old version tried to put all tournaments into one
- * embed. That meant only one thumbnail could ever exist.
- *
- * The new hub returns ONE EMBED PER TOURNAMENT.
- *
- * Discord permits 10 embeds per message, so the execute
- * function below automatically batches them.
- */
-function buildHubEmbeds(
-    tournaments
-) {
+function buildHubEmbeds(tournaments) {
     const sorted =
         sortTournaments(
             tournaments
         );
 
-    if (
-        sorted.length === 0
-    ) {
+    if (sorted.length === 0) {
         return [
             new EmbedBuilder()
                 .setTitle(
@@ -923,12 +841,8 @@ export const data =
                                 .setDescription(
                                     'Tournament ID'
                                 )
-                                .setRequired(
-                                    true
-                                )
-                                .setMaxLength(
-                                    20
-                                )
+                                .setRequired(true)
+                                .setMaxLength(20)
                     )
         )
 
@@ -941,7 +855,6 @@ export const data =
                     .setDescription(
                         'Add a tournament'
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -949,14 +862,9 @@ export const data =
                                 .setDescription(
                                     'Tournament name'
                                 )
-                                .setRequired(
-                                    true
-                                )
-                                .setMaxLength(
-                                    100
-                                )
+                                .setRequired(true)
+                                .setMaxLength(100)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -964,31 +872,25 @@ export const data =
                                 .setDescription(
                                     'Tournament status'
                                 )
-                                .setRequired(
-                                    true
-                                )
+                                .setRequired(true)
                                 .addChoices(
                                     {
-                                        name:
-                                            'Upcoming',
+                                        name: 'Upcoming',
                                         value:
                                             STATUS.UPCOMING,
                                     },
                                     {
-                                        name:
-                                            'Live',
+                                        name: 'Live',
                                         value:
                                             STATUS.LIVE,
                                     },
                                     {
-                                        name:
-                                            'Completed',
+                                        name: 'Completed',
                                         value:
                                             STATUS.COMPLETED,
                                     }
                                 )
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -996,14 +898,9 @@ export const data =
                                 .setDescription(
                                     'Date e.g. 2026-10-08'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    50
-                                )
+                                .setRequired(false)
+                                .setMaxLength(50)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1011,14 +908,9 @@ export const data =
                                 .setDescription(
                                     'Start time e.g. 18:00'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    20
-                                )
+                                .setRequired(false)
+                                .setMaxLength(20)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1026,14 +918,9 @@ export const data =
                                 .setDescription(
                                     'Timezone e.g. Europe/London'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    50
-                                )
+                                .setRequired(false)
+                                .setMaxLength(50)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1041,14 +928,9 @@ export const data =
                                 .setDescription(
                                     'Short tournament description'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    1000
-                                )
+                                .setRequired(false)
+                                .setMaxLength(1000)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1056,14 +938,9 @@ export const data =
                                 .setDescription(
                                     'Direct tournament logo image URL'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1071,14 +948,9 @@ export const data =
                                 .setDescription(
                                     'Tournament format e.g. 5v5 TH18'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1086,14 +958,9 @@ export const data =
                                 .setDescription(
                                     'Prize pool information'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1101,14 +968,9 @@ export const data =
                                 .setDescription(
                                     'Rules page URL'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1116,14 +978,9 @@ export const data =
                                 .setDescription(
                                     'Tournament Discord server URL'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1131,14 +988,9 @@ export const data =
                                 .setDescription(
                                     'Match dates, rounds or other match information'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    1000
-                                )
+                                .setRequired(false)
+                                .setMaxLength(1000)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1146,14 +998,9 @@ export const data =
                                 .setDescription(
                                     'Additional information'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    1000
-                                )
+                                .setRequired(false)
+                                .setMaxLength(1000)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1161,12 +1008,9 @@ export const data =
                                 .setDescription(
                                     'Official tournament website'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
+                    )
         )
 
         /* EDIT */
@@ -1178,7 +1022,6 @@ export const data =
                     .setDescription(
                         'Edit a tournament'
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1186,14 +1029,9 @@ export const data =
                                 .setDescription(
                                     'Tournament ID'
                                 )
-                                .setRequired(
-                                    true
-                                )
-                                .setMaxLength(
-                                    20
-                                )
+                                .setRequired(true)
+                                .setMaxLength(20)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1201,14 +1039,9 @@ export const data =
                                 .setDescription(
                                     'New tournament name'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    100
-                                )
+                                .setRequired(false)
+                                .setMaxLength(100)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1216,31 +1049,25 @@ export const data =
                                 .setDescription(
                                     'New tournament status'
                                 )
-                                .setRequired(
-                                    false
-                                )
+                                .setRequired(false)
                                 .addChoices(
                                     {
-                                        name:
-                                            'Upcoming',
+                                        name: 'Upcoming',
                                         value:
                                             STATUS.UPCOMING,
                                     },
                                     {
-                                        name:
-                                            'Live',
+                                        name: 'Live',
                                         value:
                                             STATUS.LIVE,
                                     },
                                     {
-                                        name:
-                                            'Completed',
+                                        name: 'Completed',
                                         value:
                                             STATUS.COMPLETED,
                                     }
                                 )
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1248,14 +1075,9 @@ export const data =
                                 .setDescription(
                                     'New date'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    50
-                                )
+                                .setRequired(false)
+                                .setMaxLength(50)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1263,14 +1085,9 @@ export const data =
                                 .setDescription(
                                     'New start time'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    20
-                                )
+                                .setRequired(false)
+                                .setMaxLength(20)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1278,14 +1095,9 @@ export const data =
                                 .setDescription(
                                     'New timezone'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    50
-                                )
+                                .setRequired(false)
+                                .setMaxLength(50)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1293,14 +1105,9 @@ export const data =
                                 .setDescription(
                                     'New description'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    1000
-                                )
+                                .setRequired(false)
+                                .setMaxLength(1000)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1308,14 +1115,9 @@ export const data =
                                 .setDescription(
                                     'New direct logo image URL'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1323,14 +1125,9 @@ export const data =
                                 .setDescription(
                                     'New tournament format'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1338,14 +1135,9 @@ export const data =
                                 .setDescription(
                                     'New prize pool'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1353,14 +1145,9 @@ export const data =
                                 .setDescription(
                                     'New rules URL'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1368,14 +1155,9 @@ export const data =
                                 .setDescription(
                                     'New tournament server URL'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1383,14 +1165,9 @@ export const data =
                                 .setDescription(
                                     'New match information'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    1000
-                                )
+                                .setRequired(false)
+                                .setMaxLength(1000)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1398,15 +1175,9 @@ export const data =
                                 .setDescription(
                                     'New additional notes'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    1000
-                                )
-
+                                .setRequired(false)
+                                .setMaxLength(1000)
                     )
-
                     .addStringOption(
                         (option) =>
                             option
@@ -1414,14 +1185,9 @@ export const data =
                                 .setDescription(
                                     'New official tournament website'
                                 )
-                                .setRequired(
-                                    false
-                                )
-                                .setMaxLength(
-                                    500
-                                )
+                                .setRequired(false)
+                                .setMaxLength(500)
                     )
-
                     .addBooleanOption(
                         (option) =>
                             option
@@ -1429,9 +1195,7 @@ export const data =
                                 .setDescription(
                                     'Remove the exact start time'
                                 )
-                                .setRequired(
-                                    false
-                                )
+                                .setRequired(false)
                     )
         )
 
@@ -1451,12 +1215,8 @@ export const data =
                                 .setDescription(
                                     'Tournament ID'
                                 )
-                                .setRequired(
-                                    true
-                                )
-                                .setMaxLength(
-                                    20
-                                )
+                                .setRequired(true)
+                                .setMaxLength(20)
                     )
         )
 
@@ -1476,12 +1236,8 @@ export const data =
                                 .setDescription(
                                     'Tournament ID'
                                 )
-                                .setRequired(
-                                    true
-                                )
-                                .setMaxLength(
-                                    20
-                                )
+                                .setRequired(true)
+                                .setMaxLength(20)
                     )
         )
 
@@ -1501,12 +1257,8 @@ export const data =
                                 .setDescription(
                                     'Tournament ID'
                                 )
-                                .setRequired(
-                                    true
-                                )
-                                .setMaxLength(
-                                    20
-                                )
+                                .setRequired(true)
+                                .setMaxLength(20)
                     )
         )
 
@@ -1526,12 +1278,8 @@ export const data =
                                 .setDescription(
                                     'Tournament ID'
                                 )
-                                .setRequired(
-                                    true
-                                )
-                                .setMaxLength(
-                                    20
-                                )
+                                .setRequired(true)
+                                .setMaxLength(20)
                     )
         );
 
@@ -1539,14 +1287,9 @@ export const data =
 /*                               COMMAND EXECUTION                            */
 /* -------------------------------------------------------------------------- */
 
-export async function execute(
-    interaction
-) {
-    const { client } =
-        interaction;
-
-    const guildId =
-        interaction.guildId;
+export async function execute(interaction) {
+    const { client } = interaction;
+    const guildId = interaction.guildId;
 
     if (!guildId) {
         return interaction.reply({
@@ -1565,9 +1308,7 @@ export async function execute(
         /*                                  LIST                              */
         /* ------------------------------------------------------------------ */
 
-        if (
-            subcommand === 'list'
-        ) {
+        if (subcommand === 'list') {
             const tournaments =
                 await getTournaments(
                     client,
@@ -1579,10 +1320,6 @@ export async function execute(
                     tournaments
                 );
 
-            /*
-             * Discord allows a maximum of 10 embeds
-             * per message, so split the hub automatically.
-             */
             const batches = [];
 
             for (
@@ -1626,9 +1363,7 @@ export async function execute(
         /*                                  VIEW                              */
         /* ------------------------------------------------------------------ */
 
-        if (
-            subcommand === 'view'
-        ) {
+        if (subcommand === 'view') {
             const id =
                 interaction.options.getString(
                     'id',
@@ -1647,9 +1382,7 @@ export async function execute(
                     id
                 );
 
-            if (
-                index === -1
-            ) {
+            if (index === -1) {
                 return interaction.reply({
                     content:
                         `❌ No tournament was found with ID \`${id}\`.`,
@@ -1694,9 +1427,7 @@ export async function execute(
         /*                                  ADD                               */
         /* ------------------------------------------------------------------ */
 
-        if (
-            subcommand === 'add'
-        ) {
+        if (subcommand === 'add') {
             const name =
                 interaction.options.getString(
                     'name',
@@ -1772,10 +1503,7 @@ export async function execute(
 
             let startAt = null;
 
-            if (
-                time &&
-                !date
-            ) {
+            if (time && !date) {
                 return interaction.reply({
                     content:
                         '❌ You provided a start time but no date. Please provide both `date` and `time`.',
@@ -1784,10 +1512,7 @@ export async function execute(
                 });
             }
 
-            if (
-                date &&
-                time
-            ) {
+            if (date && time) {
                 try {
                     startAt =
                         zonedDateTimeToUnix(
@@ -1795,9 +1520,7 @@ export async function execute(
                             time,
                             timezone
                         );
-                } catch (
-                    error
-                ) {
+                } catch (error) {
                     return interaction.reply({
                         content:
                             `❌ ${error.message}`,
@@ -1820,9 +1543,7 @@ export async function execute(
 
             const validatedLogo =
                 logo
-                    ? validateUrl(
-                          logo
-                      )
+                    ? validateUrl(logo)
                     : null;
 
             if (
@@ -1839,9 +1560,7 @@ export async function execute(
 
             const validatedRules =
                 rules
-                    ? validateUrl(
-                          rules
-                      )
+                    ? validateUrl(rules)
                     : null;
 
             if (
@@ -1858,9 +1577,7 @@ export async function execute(
 
             const validatedServer =
                 server
-                    ? validateUrl(
-                          server
-                      )
+                    ? validateUrl(server)
                     : null;
 
             if (
@@ -1877,9 +1594,7 @@ export async function execute(
 
             const validatedLink =
                 link
-                    ? validateUrl(
-                          link
-                      )
+                    ? validateUrl(link)
                     : null;
 
             if (
@@ -1900,55 +1615,30 @@ export async function execute(
                     guildId
                 );
 
-            const now =
-                Date.now();
+            const now = Date.now();
 
             const tournament = {
                 id:
                     generateTournamentId(),
-
                 name,
-
                 status,
-
                 date,
-
                 time,
-
                 timezone,
-
                 startAt,
-
                 description,
-
-                logo:
-                    validatedLogo,
-
+                logo: validatedLogo,
                 format,
-
                 prize,
-
-                rules:
-                    validatedRules,
-
-                server:
-                    validatedServer,
-
+                rules: validatedRules,
+                server: validatedServer,
                 matchInfo,
-
                 notes,
-
-                link:
-                    validatedLink,
-
-                createdAt:
-                    now,
-
+                link: validatedLink,
+                createdAt: now,
                 createdBy:
                     interaction.user.id,
-
-                updatedAt:
-                    now,
+                updatedAt: now,
             };
 
             tournaments.push(
@@ -1987,9 +1677,7 @@ export async function execute(
         /*                                 EDIT                               */
         /* ------------------------------------------------------------------ */
 
-        if (
-            subcommand === 'edit'
-        ) {
+        if (subcommand === 'edit') {
             const id =
                 interaction.options.getString(
                     'id',
@@ -2008,9 +1696,7 @@ export async function execute(
                     id
                 );
 
-            if (
-                index === -1
-            ) {
+            if (index === -1) {
                 return interaction.reply({
                     content:
                         `❌ No tournament was found with ID \`${id}\`.`,
@@ -2097,30 +1783,22 @@ export async function execute(
                     'clear_time'
                 ) || false;
 
-            if (
-                name !== null
-            ) {
+            if (name !== null) {
                 tournament.name =
                     name;
             }
 
-            if (
-                status !== null
-            ) {
+            if (status !== null) {
                 tournament.status =
                     status;
             }
 
-            if (
-                date !== null
-            ) {
+            if (date !== null) {
                 tournament.date =
                     date;
             }
 
-            if (
-                timezone !== null
-            ) {
+            if (timezone !== null) {
                 if (
                     !isValidTimeZone(
                         timezone
@@ -2145,62 +1823,41 @@ export async function execute(
                     description;
             }
 
-            if (
-                format !== null
-            ) {
+            if (format !== null) {
                 tournament.format =
                     format;
             }
 
-            if (
-                prize !== null
-            ) {
+            if (prize !== null) {
                 tournament.prize =
                     prize;
             }
 
-            if (
-                matchInfo !== null
-            ) {
+            if (matchInfo !== null) {
                 tournament.matchInfo =
                     matchInfo;
             }
 
-            if (
-                notes !== null
-            ) {
+            if (notes !== null) {
                 tournament.notes =
                     notes;
             }
 
-            if (
-                time !== null
-            ) {
+            if (time !== null) {
                 tournament.time =
                     time;
             }
 
-            if (
-                clearTime
-            ) {
-                tournament.time =
-                    null;
-
-                tournament.startAt =
-                    null;
+            if (clearTime) {
+                tournament.time = null;
+                tournament.startAt = null;
             }
 
-            if (
-                logo !== null
-            ) {
+            if (logo !== null) {
                 const validatedLogo =
-                    validateUrl(
-                        logo
-                    );
+                    validateUrl(logo);
 
-                if (
-                    !validatedLogo
-                ) {
+                if (!validatedLogo) {
                     return interaction.reply({
                         content:
                             '❌ The logo must be a valid `http://` or `https://` URL.',
@@ -2213,17 +1870,11 @@ export async function execute(
                     validatedLogo;
             }
 
-            if (
-                rules !== null
-            ) {
+            if (rules !== null) {
                 const validatedRules =
-                    validateUrl(
-                        rules
-                    );
+                    validateUrl(rules);
 
-                if (
-                    !validatedRules
-                ) {
+                if (!validatedRules) {
                     return interaction.reply({
                         content:
                             '❌ The rules must be a valid `http://` or `https://` URL.',
@@ -2236,17 +1887,11 @@ export async function execute(
                     validatedRules;
             }
 
-            if (
-                server !== null
-            ) {
+            if (server !== null) {
                 const validatedServer =
-                    validateUrl(
-                        server
-                    );
+                    validateUrl(server);
 
-                if (
-                    !validatedServer
-                ) {
+                if (!validatedServer) {
                     return interaction.reply({
                         content:
                             '❌ The tournament server must be a valid `http://` or `https://` URL.',
@@ -2259,17 +1904,11 @@ export async function execute(
                     validatedServer;
             }
 
-            if (
-                link !== null
-            ) {
+            if (link !== null) {
                 const validatedLink =
-                    validateUrl(
-                        link
-                    );
+                    validateUrl(link);
 
-                if (
-                    !validatedLink
-                ) {
+                if (!validatedLink) {
                     return interaction.reply({
                         content:
                             '❌ The tournament website must be a valid `http://` or `https://` URL.',
@@ -2283,12 +1922,10 @@ export async function execute(
             }
 
             /*
-             * Recalculate the timestamp whenever the
+             * Recalculate the timestamp whenever
              * date, time or timezone changes.
              */
-            if (
-                !clearTime
-            ) {
+            if (!clearTime) {
                 if (
                     tournament.date &&
                     tournament.time
@@ -2301,9 +1938,7 @@ export async function execute(
                                 tournament.timezone ||
                                     DEFAULT_TIMEZONE
                             );
-                    } catch (
-                        error
-                    ) {
+                    } catch (error) {
                         return interaction.reply({
                             content:
                                 `❌ ${error.message}`,
@@ -2350,9 +1985,7 @@ export async function execute(
         /*                                REMOVE                              */
         /* ------------------------------------------------------------------ */
 
-        if (
-            subcommand === 'remove'
-        ) {
+        if (subcommand === 'remove') {
             const id =
                 interaction.options.getString(
                     'id',
@@ -2371,9 +2004,7 @@ export async function execute(
                     id
                 );
 
-            if (
-                index === -1
-            ) {
+            if (index === -1) {
                 return interaction.reply({
                     content:
                         `❌ No tournament was found with ID \`${id}\`.`,
@@ -2382,9 +2013,7 @@ export async function execute(
                 });
             }
 
-            const [
-                removed,
-            ] =
+            const [removed] =
                 tournaments.splice(
                     index,
                     1
@@ -2450,9 +2079,7 @@ export async function execute(
                     id
                 );
 
-            if (
-                index === -1
-            ) {
+            if (index === -1) {
                 return interaction.reply({
                     content:
                         `❌ No tournament was found with ID \`${id}\`.`,
@@ -2464,10 +2091,8 @@ export async function execute(
             const statusMap = {
                 complete:
                     STATUS.COMPLETED,
-
                 live:
                     STATUS.LIVE,
-
                 upcoming:
                     STATUS.UPCOMING,
             };
@@ -2520,9 +2145,7 @@ export async function execute(
             flags:
                 MessageFlags.Ephemeral,
         });
-    } catch (
-        error
-    ) {
+    } catch (error) {
         console.error(
             '[TOURNAMENTS] Command error:',
             error
@@ -2552,11 +2175,6 @@ export async function execute(
 /* -------------------------------------------------------------------------- */
 /*                              DEFAULT EXPORT                                */
 /* -------------------------------------------------------------------------- */
-
-/*
- * IMPORTANT:
- * The command loader expects a mutable default export.
- */
 
 export default {
     data,
