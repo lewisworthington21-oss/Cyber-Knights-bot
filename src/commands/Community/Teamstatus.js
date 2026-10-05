@@ -25,7 +25,6 @@ const data = new SlashCommandBuilder()
         subcommand
             .setName('setup')
             .setDescription('Create or move the team status dashboard to this channel')
-            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     )
 
     // MATCH
@@ -49,7 +48,6 @@ const data = new SlashCommandBuilder()
                         }
                     )
             )
-            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     )
 
     // ROSTER
@@ -103,7 +101,6 @@ const data = new SlashCommandBuilder()
                         }
                     )
             )
-            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     );
 
 async function execute(interaction) {
@@ -128,7 +125,12 @@ async function execute(interaction) {
         }
 
         return interaction.reply({
-            embeds: [buildTeamStatusDashboard(interaction.guild, config)],
+            embeds: [
+                buildTeamStatusDashboard(
+                    interaction.guild,
+                    config
+                ),
+            ],
             ephemeral: true,
         });
     }
@@ -137,7 +139,11 @@ async function execute(interaction) {
     // PERMISSION CHECK
     // ---------------------------------------------------------
 
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    if (
+        !interaction.memberPermissions?.has(
+            PermissionFlagsBits.ManageGuild
+        )
+    ) {
         return interaction.reply({
             content:
                 '❌ You need the **Manage Server** permission to use this command.',
@@ -150,35 +156,11 @@ async function execute(interaction) {
     // ---------------------------------------------------------
 
     if (subcommand === 'setup') {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({
+            ephemeral: true,
+        });
 
         const guild = interaction.guild;
-
-        let config = await getTeamStatusConfig(
-            interaction.client.db,
-            guild.id
-        );
-
-        // Remove the previous dashboard if one exists.
-        if (config.channelId && config.messageId) {
-            try {
-                const oldChannel = await guild.channels.fetch(config.channelId);
-
-                if (oldChannel?.isTextBased()) {
-                    const oldMessage = await oldChannel.messages.fetch(
-                        config.messageId
-                    );
-
-                    if (oldMessage) {
-                        await oldMessage.delete();
-                    }
-                }
-            } catch {
-                // Old dashboard may already have been deleted.
-            }
-        }
-
-        // Create the new dashboard in the channel where setup was run.
         const channel = interaction.channel;
 
         if (!channel?.isTextBased()) {
@@ -188,12 +170,44 @@ async function execute(interaction) {
             });
         }
 
+        const config = await getTeamStatusConfig(
+            interaction.client.db,
+            guild.id
+        );
+
+        // Delete the previous dashboard if one exists.
+        if (config.channelId && config.messageId) {
+            try {
+                const oldChannel = await guild.channels.fetch(
+                    config.channelId
+                );
+
+                if (oldChannel?.isTextBased()) {
+                    const oldMessage =
+                        await oldChannel.messages.fetch(
+                            config.messageId
+                        );
+
+                    if (oldMessage) {
+                        await oldMessage.delete();
+                    }
+                }
+            } catch {
+                // Previous dashboard may already have been deleted.
+            }
+        }
+
         config.channelId = channel.id;
         config.messageId = null;
 
+        // Create the new dashboard.
         const message = await channel.send({
-            embeds: [buildTeamStatusDashboard(guild, config)],
-            components: [],
+            embeds: [
+                buildTeamStatusDashboard(
+                    guild,
+                    config
+                ),
+            ],
         });
 
         config.messageId = message.id;
@@ -213,9 +227,14 @@ async function execute(interaction) {
             pinned = false;
         }
 
-        // Rebuild after saving so the service has the final config.
+        // Re-render now that the message ID has been saved.
         await message.edit({
-            embeds: [buildTeamStatusDashboard(guild, config)],
+            embeds: [
+                buildTeamStatusDashboard(
+                    guild,
+                    config
+                ),
+            ],
         });
 
         return interaction.editReply({
@@ -230,7 +249,10 @@ async function execute(interaction) {
     // ---------------------------------------------------------
 
     if (subcommand === 'match') {
-        const status = interaction.options.getString('status', true);
+        const status = interaction.options.getString(
+            'status',
+            true
+        );
 
         const config = await getTeamStatusConfig(
             interaction.client.db,
@@ -259,9 +281,19 @@ async function execute(interaction) {
     // ---------------------------------------------------------
 
     if (subcommand === 'roster') {
-        const action = interaction.options.getString('action', true);
-        const member = interaction.options.getUser('member', true);
-        const position = interaction.options.getString('position');
+        const action = interaction.options.getString(
+            'action',
+            true
+        );
+
+        const member = interaction.options.getUser(
+            'member',
+            true
+        );
+
+        const position = interaction.options.getString(
+            'position'
+        );
 
         const config = await getTeamStatusConfig(
             interaction.client.db,
@@ -283,12 +315,16 @@ async function execute(interaction) {
 
             if (existingIndex === -1) {
                 return interaction.reply({
-                    content: `❌ ${member} is not currently on the Cyber Knights roster.`,
+                    content:
+                        `❌ ${member} is not currently on the Cyber Knights roster.`,
                     ephemeral: true,
                 });
             }
 
-            config.roster.splice(existingIndex, 1);
+            config.roster.splice(
+                existingIndex,
+                1
+            );
 
             await saveTeamStatusConfig(
                 interaction.client.db,
@@ -297,7 +333,8 @@ async function execute(interaction) {
             );
 
             return interaction.reply({
-                content: `✅ ${member} has been **removed from the Cyber Knights roster**.`,
+                content:
+                    `✅ ${member} has been **removed from the Cyber Knights roster**.`,
                 ephemeral: true,
             });
         }
@@ -379,13 +416,15 @@ async function execute(interaction) {
         }
 
         return interaction.reply({
-            content: '❌ Unknown roster action.',
+            content:
+                '❌ Unknown roster action.',
             ephemeral: true,
         });
     }
 
     return interaction.reply({
-        content: '❌ Unknown team status command.',
+        content:
+            '❌ Unknown team status command.',
         ephemeral: true,
     });
 }
