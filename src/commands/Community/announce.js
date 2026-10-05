@@ -5,12 +5,6 @@ import {
     EmbedBuilder,
 } from 'discord.js';
 
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
 const ANNOUNCEMENT_COLOUR = 0x2f80ed;
 
 const TYPE_CONFIG = {
@@ -43,6 +37,7 @@ const TYPE_CONFIG = {
 const data = new SlashCommandBuilder()
     .setName('announce')
     .setDescription('Create a professional Cyber Knights announcement')
+
     .addStringOption(option =>
         option
             .setName('type')
@@ -75,6 +70,7 @@ const data = new SlashCommandBuilder()
                 }
             )
     )
+
     .addChannelOption(option =>
         option
             .setName('channel')
@@ -82,48 +78,56 @@ const data = new SlashCommandBuilder()
             .setRequired(true)
             .addChannelTypes(ChannelType.GuildText)
     )
+
     .addStringOption(option =>
         option
             .setName('message')
-            .setDescription('Briefly describe what you want to announce')
+            .setDescription('The main information you want to announce')
             .setRequired(true)
     )
+
     .addRoleOption(option =>
         option
             .setName('role')
             .setDescription('Optional role to mention')
             .setRequired(false)
     )
+
     .addStringOption(option =>
         option
             .setName('date')
             .setDescription('Optional date, e.g. 2026-10-12')
             .setRequired(false)
     )
+
     .addStringOption(option =>
         option
             .setName('time')
             .setDescription('Optional time, e.g. 20:30')
             .setRequired(false)
     )
+
     .addStringOption(option =>
         option
             .setName('timezone')
             .setDescription('Optional timezone, e.g. Europe/London')
             .setRequired(false)
     )
+
     .addStringOption(option =>
         option
             .setName('link')
-            .setDescription('Optional link')
+            .setDescription('Optional website or tournament link')
             .setRequired(false)
     )
+
     .addStringOption(option =>
         option
             .setName('format')
-            .setDescription('Optional tournament/match format, e.g. 5v5 TH18')
+            .setDescription('Optional format, e.g. 5v5 TH18')
             .setRequired(false)
     )
+
     .addStringOption(option =>
         option
             .setName('prize')
@@ -132,15 +136,21 @@ const data = new SlashCommandBuilder()
     );
 
 function cleanText(value) {
-    if (!value) return null;
+    if (!value) {
+        return null;
+    }
 
     const cleaned = String(value).trim();
 
-    return cleaned.length > 0 ? cleaned : null;
+    return cleaned.length > 0
+        ? cleaned
+        : null;
 }
 
 function isValidTimezone(timezone) {
-    if (!timezone) return false;
+    if (!timezone) {
+        return false;
+    }
 
     try {
         Intl.DateTimeFormat('en-US', {
@@ -153,7 +163,11 @@ function isValidTimezone(timezone) {
     }
 }
 
-function convertDateTimeToUnix(date, time, timezone) {
+function convertDateTimeToUnix(
+    date,
+    time,
+    timezone
+) {
     if (!date || !time || !timezone) {
         return null;
     }
@@ -162,8 +176,11 @@ function convertDateTimeToUnix(date, time, timezone) {
         return null;
     }
 
-    const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-    const timeMatch = /^(\d{2}):(\d{2})$/.exec(time);
+    const dateMatch =
+        /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+
+    const timeMatch =
+        /^(\d{2}):(\d{2})$/.exec(time);
 
     if (!dateMatch || !timeMatch) {
         return null;
@@ -188,10 +205,6 @@ function convertDateTimeToUnix(date, time, timezone) {
         return null;
     }
 
-    /*
-     * Build an initial UTC timestamp from the supplied local values.
-     * We then determine the timezone offset at that point and adjust it.
-     */
     const initialUtc = Date.UTC(
         year,
         month - 1,
@@ -200,15 +213,16 @@ function convertDateTimeToUnix(date, time, timezone) {
         minute
     );
 
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-    });
+    const formatter =
+        new Intl.DateTimeFormat('en-CA', {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23',
+        });
 
     const parts = formatter.formatToParts(
         new Date(initialUtc)
@@ -218,7 +232,9 @@ function convertDateTimeToUnix(date, time, timezone) {
 
     for (const part of parts) {
         if (part.type !== 'literal') {
-            values[part.type] = Number(part.value);
+            values[part.type] = Number(
+                part.value
+            );
         }
     }
 
@@ -230,7 +246,8 @@ function convertDateTimeToUnix(date, time, timezone) {
         values.minute
     );
 
-    const offset = timezoneAsUtc - initialUtc;
+    const offset =
+        timezoneAsUtc - initialUtc;
 
     return Math.floor(
         (initialUtc - offset) / 1000
@@ -238,7 +255,10 @@ function convertDateTimeToUnix(date, time, timezone) {
 }
 
 function buildTimestamp(unix) {
-    if (!unix || !Number.isFinite(Number(unix))) {
+    if (
+        !unix ||
+        !Number.isFinite(Number(unix))
+    ) {
         return null;
     }
 
@@ -247,23 +267,148 @@ function buildTimestamp(unix) {
     return `<t:${timestamp}:F>\n<t:${timestamp}:R>`;
 }
 
-function safeJsonParse(value) {
-    if (!value) {
-        throw new Error(
-            'OpenAI returned an empty response.'
-        );
+function buildDetails({
+    type,
+    date,
+    time,
+    timezone,
+    format,
+    prize,
+}) {
+    const fields = [];
+
+    if (type === 'tournament') {
+        if (format) {
+            fields.push({
+                name: '⚔️ Format',
+                value: format,
+                inline: true,
+            });
+        }
+
+        if (prize) {
+            fields.push({
+                name: '💰 Prize',
+                value: prize,
+                inline: true,
+            });
+        }
     }
 
-    try {
-        return JSON.parse(value);
-    } catch {
-        throw new Error(
-            'OpenAI returned invalid JSON.'
-        );
+    if (type === 'match') {
+        if (format) {
+            fields.push({
+                name: '⚔️ Format',
+                value: format,
+                inline: true,
+            });
+        }
     }
+
+    if (
+        date &&
+        time &&
+        timezone
+    ) {
+        const unix =
+            convertDateTimeToUnix(
+                date,
+                time,
+                timezone
+            );
+
+        const timestamp =
+            buildTimestamp(unix);
+
+        if (timestamp) {
+            fields.push({
+                name: '📅 When',
+                value: timestamp,
+                inline: false,
+            });
+        }
+    }
+
+    return fields;
 }
 
-async function generateAnnouncement({
+function buildAnnouncementContent({
+    type,
+    message,
+}) {
+    const config =
+        TYPE_CONFIG[type] ||
+        TYPE_CONFIG.general;
+
+    let title = message;
+    let description = message;
+    let callToAction = null;
+
+    if (type === 'tournament') {
+        title = 'Tournament Update';
+
+        description =
+            `Cyber Knights have an important tournament update.\n\n${message}`;
+
+        callToAction =
+            'Keep an eye on the server for further tournament and match information.';
+    }
+
+    if (type === 'match') {
+        title = 'Match Update';
+
+        description =
+            `Cyber Knights match information.\n\n${message}`;
+
+        callToAction =
+            'Players involved should be ready and available at the required time.';
+    }
+
+    if (type === 'team') {
+        title = 'Team Update';
+
+        description =
+            `An important update for the Cyber Knights team.\n\n${message}`;
+
+        callToAction =
+            'Please make sure you have read and understood the information above.';
+    }
+
+    if (type === 'roster') {
+        title = 'Roster Update';
+
+        description =
+            `There has been an update to the Cyber Knights roster.\n\n${message}`;
+
+        callToAction =
+            'Please check the current roster and team channels for any further information.';
+    }
+
+    if (type === 'practice') {
+        title = 'Practice Session';
+
+        description =
+            `Cyber Knights practice information.\n\n${message}`;
+
+        callToAction =
+            'Players should be ready to join and prepared to practice.';
+    }
+
+    if (type === 'general') {
+        title = 'Cyber Knights Update';
+
+        description = message;
+    }
+
+    return {
+        title,
+        description,
+        callToAction,
+        emoji: config.emoji,
+    };
+}
+
+function buildAnnouncementEmbed({
     type,
     message,
     date,
@@ -274,173 +419,54 @@ async function generateAnnouncement({
     prize,
 }) {
     const config =
-        TYPE_CONFIG[type] || TYPE_CONFIG.general;
+        TYPE_CONFIG[type] ||
+        TYPE_CONFIG.general;
 
-    const explicitDetails = {
-        date: date || null,
-        time: time || null,
-        timezone: timezone || null,
-        link: link || null,
-        format: format || null,
-        prize: prize || null,
-    };
-
-    const response = await openai.responses.create({
-        model:
-            process.env.OPENAI_ANNOUNCE_MODEL ||
-            'gpt-4.1-mini',
-
-        instructions: `
-You are the announcement writer for Cyber Knights (CK), a serious competitive Clash of Clans TH18 esports organisation.
-
-Your job is to turn a short, informal Discord instruction into a polished announcement.
-
-The announcement must:
-- Be concise and professional.
-- Sound like a serious esports organisation.
-- Be easy to scan on Discord.
-- Avoid unnecessary hype or generic corporate language.
-- Never invent facts.
-- Never invent dates, times, players, teams, prizes, links, formats or other information.
-- Only use information provided by the user.
-- Preserve the meaning of the original message.
-- Use clear esports terminology where appropriate.
-- Avoid excessive emojis.
-- Do not repeat information that will separately appear in the structured details.
-- Do not mention that AI was used.
-- Do not use Markdown headings inside the title or description.
-- Do not use @everyone or @here.
-
-Announcement type:
-${config.label}
-
-The user provided:
-${message}
-
-Additional explicit information:
-${JSON.stringify(explicitDetails, null, 2)}
-
-Return ONLY valid JSON matching the supplied schema.
-        `.trim(),
-
-        input: message,
-
-        text: {
-            format: {
-                type: 'json_schema',
-                name: 'cyber_knights_announcement',
-                strict: true,
-                schema: {
-                    type: 'object',
-                    additionalProperties: false,
-                    properties: {
-                        title: {
-                            type: 'string',
-                        },
-                        description: {
-                            type: 'string',
-                        },
-                        details: {
-                            type: 'array',
-                            items: {
-                                type: 'object',
-                                additionalProperties: false,
-                                properties: {
-                                    label: {
-                                        type: 'string',
-                                    },
-                                    value: {
-                                        type: 'string',
-                                    },
-                                },
-                                required: [
-                                    'label',
-                                    'value',
-                                ],
-                            },
-                        },
-                        callToAction: {
-                            type: 'string',
-                        },
-                    },
-                    required: [
-                        'title',
-                        'description',
-                        'details',
-                        'callToAction',
-                    ],
-                },
-            },
-        },
-    });
-
-    return safeJsonParse(
-        response.output_text
-    );
-}
-
-function buildAnnouncementEmbed({
-    type,
-    announcement,
-    timestamp,
-    link,
-}) {
-    const config =
-        TYPE_CONFIG[type] || TYPE_CONFIG.general;
-
-    const embed = new EmbedBuilder()
-        .setColor(ANNOUNCEMENT_COLOUR)
-        .setAuthor({
-            name: 'CYBER KNIGHTS',
-        })
-        .setTitle(
-            `${config.emoji} ${announcement.title}`
-        )
-        .setDescription(
-            announcement.description
-        );
-
-    if (
-        Array.isArray(announcement.details)
-    ) {
-        for (
-            const detail of announcement.details.slice(0, 6)
-        ) {
-            if (
-                !detail?.label ||
-                !detail?.value
-            ) {
-                continue;
-            }
-
-            embed.addFields({
-                name: detail.label,
-                value: detail.value,
-                inline: true,
-            });
-        }
-    }
-
-    if (timestamp) {
-        embed.addFields({
-            name: '📅 When',
-            value: timestamp,
-            inline: false,
+    const content =
+        buildAnnouncementContent({
+            type,
+            message,
         });
-    }
 
-    if (announcement.callToAction) {
-        embed.addFields({
-            name: '➡️ Next Step',
-            value: announcement.callToAction,
-            inline: false,
+    const embed =
+        new EmbedBuilder()
+            .setColor(ANNOUNCEMENT_COLOUR)
+            .setAuthor({
+                name: 'CYBER KNIGHTS',
+            })
+            .setTitle(
+                `${config.emoji} ${content.title}`
+            )
+            .setDescription(
+                content.description
+            );
+
+    const details =
+        buildDetails({
+            type,
+            date,
+            time,
+            timezone,
+            format,
+            prize,
         });
+
+    if (details.length > 0) {
+        embed.addFields(details);
     }
 
     if (link) {
         embed.addFields({
-            name: '🔗 Link',
+            name: '🔗 More Information',
             value: `[Open Link](${link})`,
+            inline: false,
+        });
+    }
+
+    if (content.callToAction) {
+        embed.addFields({
+            name: '➡️ Next Step',
+            value: content.callToAction,
             inline: false,
         });
     }
@@ -544,7 +570,17 @@ async function execute(interaction) {
             });
         }
 
-        if (timezone && !isValidTimezone(timezone)) {
+        if (!message) {
+            return interaction.editReply({
+                content:
+                    '❌ Your announcement message cannot be empty.',
+            });
+        }
+
+        if (
+            timezone &&
+            !isValidTimezone(timezone)
+        ) {
             return interaction.editReply({
                 content:
                     `❌ **${timezone}** is not a valid timezone.\n\nExample: \`Europe/London\`, \`Europe/Athens\`, or \`Asia/Kolkata\`.`,
@@ -552,34 +588,13 @@ async function execute(interaction) {
         }
 
         if (
-            (date || time) &&
+            (date || time || timezone) &&
             (!date || !time || !timezone)
         ) {
             return interaction.editReply({
                 content:
                     '❌ To add a scheduled time, please provide **date, time and timezone** together.',
             });
-        }
-
-        let timestamp = null;
-
-        if (date && time && timezone) {
-            const unix =
-                convertDateTimeToUnix(
-                    date,
-                    time,
-                    timezone
-                );
-
-            if (!unix) {
-                return interaction.editReply({
-                    content:
-                        '❌ I couldn’t understand that date/time combination.\n\nUse:\n`date: 2026-10-12`\n`time: 20:30`\n`timezone: Europe/London`',
-                });
-            }
-
-            timestamp =
-                buildTimestamp(unix);
         }
 
         if (link) {
@@ -593,8 +608,28 @@ async function execute(interaction) {
             }
         }
 
-        const announcement =
-            await generateAnnouncement({
+        if (
+            date &&
+            time &&
+            timezone
+        ) {
+            const unix =
+                convertDateTimeToUnix(
+                    date,
+                    time,
+                    timezone
+                );
+
+            if (!unix) {
+                return interaction.editReply({
+                    content:
+                        '❌ I could not understand that date/time combination.\n\nUse:\n`date: 2026-10-12`\n`time: 20:30`\n`timezone: Europe/London`',
+                });
+            }
+        }
+
+        const embed =
+            buildAnnouncementEmbed({
                 type,
                 message,
                 date,
@@ -603,14 +638,6 @@ async function execute(interaction) {
                 link,
                 format,
                 prize,
-            });
-
-        const embed =
-            buildAnnouncementEmbed({
-                type,
-                announcement,
-                timestamp,
-                link,
             });
 
         const content = role
@@ -640,29 +667,9 @@ async function execute(interaction) {
             error
         );
 
-        let errorMessage =
-            '❌ Something went wrong while creating the announcement.';
-
-        if (
-            error?.code ===
-            'model_not_found'
-        ) {
-            errorMessage =
-                '❌ The configured OpenAI model is not available to the API account.';
-        } else if (
-            error?.status === 401
-        ) {
-            errorMessage =
-                '❌ The OpenAI API key is invalid or has expired.';
-        } else if (
-            error?.status === 429
-        ) {
-            errorMessage =
-                '❌ The OpenAI API rate limit or usage limit was reached.';
-        }
-
         return interaction.editReply({
-            content: errorMessage,
+            content:
+                '❌ Something went wrong while creating the announcement. Check the Railway logs for details.',
         });
     }
 }
