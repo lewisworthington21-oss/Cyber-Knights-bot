@@ -5,7 +5,8 @@ import {
     MessageFlags,
 } from 'discord.js';
 
-const TOURNAMENTS_KEY = (guildId) => `guild:${guildId}:tournaments`;
+const TOURNAMENTS_KEY = (guildId) =>
+    `guild:${guildId}:tournaments`;
 
 const STATUS = {
     UPCOMING: 'upcoming',
@@ -102,8 +103,7 @@ function parseDateInput(input) {
         return null;
     }
 
-    // 8 October 2026
-    // 8 Oct 2026
+    // 8 October 2026 / 8 Oct 2026
     match = value.match(
         /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/
     );
@@ -132,7 +132,11 @@ function parseDateInput(input) {
     return null;
 }
 
-function isValidDateParts(year, month, day) {
+function isValidDateParts(
+    year,
+    month,
+    day
+) {
     if (
         !Number.isInteger(year) ||
         !Number.isInteger(month) ||
@@ -212,10 +216,8 @@ function parseTimeInput(input) {
                 hour += 12;
             }
         }
-    } else {
-        if (hour > 23) {
-            return null;
-        }
+    } else if (hour > 23) {
+        return null;
     }
 
     return {
@@ -339,6 +341,7 @@ function zonedDateTimeToUnix(
 
     let utcMs = naiveUtcMs;
 
+    // Multiple passes correctly handle normal timezone/DST offsets.
     for (let i = 0; i < 4; i++) {
         const offset =
             getTimeZoneOffsetMs(
@@ -471,10 +474,6 @@ function normalizeTournament(
             tournament.logo ||
             null,
 
-        link:
-            tournament.link ||
-            null,
-
         format:
             tournament.format ||
             null,
@@ -497,6 +496,10 @@ function normalizeTournament(
 
         notes:
             tournament.notes ||
+            null,
+
+        link:
+            tournament.link ||
             null,
 
         createdAt:
@@ -682,7 +685,8 @@ function buildTournamentEmbed(
             .addFields(
                 {
                     name: 'STATUS',
-                    value: `${meta.emoji} **${meta.label}**`,
+                    value:
+                        `${meta.emoji} **${meta.label}**`,
                     inline: true,
                 },
                 {
@@ -695,7 +699,8 @@ function buildTournamentEmbed(
                 }
             )
             .setFooter({
-                text: `Cyber Knights • Tournament ID: ${tournament.id}`,
+                text:
+                    `Cyber Knights • Tournament ID: ${tournament.id}`,
             });
 
     if (tournament.logo) {
@@ -729,7 +734,8 @@ function buildTournamentEmbed(
     if (tournament.rules) {
         embed.addFields({
             name: '📜 RULES',
-            value: `[View Tournament Rules](${tournament.rules})`,
+            value:
+                `[View Tournament Rules](${tournament.rules})`,
             inline: false,
         });
     }
@@ -737,7 +743,8 @@ function buildTournamentEmbed(
     if (tournament.server) {
         embed.addFields({
             name: '🔗 TOURNAMENT SERVER',
-            value: `[Join Tournament Server](${tournament.server})`,
+            value:
+                `[Join Tournament Server](${tournament.server})`,
             inline: false,
         });
     }
@@ -760,6 +767,15 @@ function buildTournamentEmbed(
                 tournament.notes,
                 1024
             ),
+            inline: false,
+        });
+    }
+
+    if (tournament.link) {
+        embed.addFields({
+            name: '🌐 OFFICIAL TOURNAMENT WEBSITE',
+            value:
+                `[Visit Official Website](${tournament.link})`,
             inline: false,
         });
     }
@@ -815,7 +831,8 @@ function buildHubEmbed(
                 ].join('\n')
             )
             .setFooter({
-                text: 'Cyber Knights • Tournament Hub',
+                text:
+                    'Cyber Knights • Tournament Hub',
             });
 
     if (
@@ -832,28 +849,48 @@ function buildHubEmbed(
         return embed;
     }
 
+    /*
+     * Discord embeds have a maximum of 25 fields.
+     * Each tournament uses ONE field so the hub can
+     * safely display up to 20 tournaments.
+     */
     const display =
         sorted.slice(0, 20);
 
     for (
-        const tournament of display
+        let index = 0;
+        index < display.length;
+        index++
     ) {
+        const tournament =
+            display[index];
+
         const meta =
             getStatusMeta(
                 tournament.status
             );
 
-        let value = [
+        const value = [
             `${meta.emoji} **${meta.label}**`,
             getTournamentSchedule(
                 tournament
             ),
+            `🆔 **Tournament ID:** \`${tournament.id}\``,
         ];
 
         if (tournament.format) {
             value.push(
                 `🎮 **Format:** ${truncate(
                     tournament.format,
+                    200
+                )}`
+            );
+        }
+
+        if (tournament.prize) {
+            value.push(
+                `💰 **Prize:** ${truncate(
+                    tournament.prize,
                     200
                 )}`
             );
@@ -871,6 +908,39 @@ function buildHubEmbed(
             );
         }
 
+        if (tournament.matchInfo) {
+            value.push(
+                `⚔️ **Match Info:** ${truncate(
+                    tournament.matchInfo,
+                    300
+                )}`
+            );
+        }
+
+        if (tournament.notes) {
+            value.push(
+                `📝 **Notes:** ${truncate(
+                    tournament.notes,
+                    300
+                )}`
+            );
+        }
+
+        /*
+         * Add a visual divider inside the field.
+         * This keeps each tournament clearly separated
+         * without creating extra Discord embed fields.
+         */
+        if (
+            index <
+            display.length - 1
+        ) {
+            value.push(
+                '',
+                '━━━━━━━━━━━━━━━━━━━━'
+            );
+        }
+
         embed.addFields({
             name:
                 `${meta.emoji} ${tournament.name}`,
@@ -885,11 +955,13 @@ function buildHubEmbed(
         display.length
     ) {
         embed.addFields({
-            name: '📌 MORE TOURNAMENTS',
-            value: `There are ${
-                sorted.length -
-                display.length
-            } additional tournaments not displayed.`,
+            name:
+                '📌 MORE TOURNAMENTS',
+            value:
+                `There are ${
+                    sorted.length -
+                    display.length
+                } additional tournaments not displayed.`,
             inline: false,
         });
     }
@@ -1165,7 +1237,6 @@ export const data =
                                 .setMaxLength(
                                     1000
                                 )
-
                     )
 
                     .addStringOption(
@@ -1425,7 +1496,6 @@ export const data =
                                 .setMaxLength(
                                     1000
                                 )
-
                     )
 
                     .addStringOption(
@@ -1900,11 +1970,6 @@ export async function execute(
                 guildId,
                 tournaments
             );
-
-            const meta =
-                getStatusMeta(
-                    status
-                );
 
             const embed =
                 buildTournamentEmbed(
@@ -2489,7 +2554,6 @@ export async function execute(
 /*
  * IMPORTANT:
  * The command loader expects a mutable default export.
- * Do not change this to "export default, data, execute".
  */
 
 export default {
