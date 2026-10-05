@@ -46,6 +46,8 @@ const data = new SlashCommandBuilder()
     .setDefaultMemberPermissions(
         PermissionFlagsBits.ManageGuild.toString()
     )
+
+    // REQUIRED OPTIONS
     .addStringOption(option =>
         option
             .setName('type')
@@ -67,18 +69,20 @@ const data = new SlashCommandBuilder()
             .setRequired(true)
             .addChannelTypes(ChannelType.GuildText)
     )
-    .addRoleOption(option =>
-        option
-            .setName('role')
-            .setDescription('Optional role to notify')
-            .setRequired(false)
-    )
     .addStringOption(option =>
         option
             .setName('message')
             .setDescription('Briefly explain what you want to announce')
             .setRequired(true)
             .setMaxLength(2000)
+    )
+
+    // OPTIONAL OPTIONS
+    .addRoleOption(option =>
+        option
+            .setName('role')
+            .setDescription('Optional role to notify')
+            .setRequired(false)
     )
     .addStringOption(option =>
         option
@@ -255,7 +259,9 @@ async function generateAnnouncement({
     const typeConfig = TYPE_CONFIG[type];
 
     const response = await openai.responses.create({
-        model: process.env.OPENAI_ANNOUNCE_MODEL || 'gpt-5.6-mini',
+        model:
+            process.env.OPENAI_ANNOUNCE_MODEL ||
+            'gpt-5.6-mini',
 
         instructions: `
 You write announcements for Cyber Knights, a serious competitive TH18 Clash of Clans esports organisation.
@@ -488,15 +494,15 @@ async function execute(interaction) {
             true
         );
 
-    const role =
-        interaction.options.getRole(
-            'role'
-        );
-
     const message =
         interaction.options.getString(
             'message',
             true
+        );
+
+    const role =
+        interaction.options.getRole(
+            'role'
         );
 
     const date =
