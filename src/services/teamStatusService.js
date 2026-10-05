@@ -8,10 +8,6 @@ const TEAM_STATUS_KEY = (guildId) =>
 const TOURNAMENTS_KEY = (guildId) =>
     `guild:${guildId}:tournaments`;
 
-/* -------------------------------------------------------------------------- */
-/*                              DEFAULT CONFIG                                */
-/* -------------------------------------------------------------------------- */
-
 function getDefaultConfig() {
     return {
         channelId: null,
@@ -21,19 +17,11 @@ function getDefaultConfig() {
     };
 }
 
-/* -------------------------------------------------------------------------- */
-/*                              CONFIG STORAGE                                */
-/* -------------------------------------------------------------------------- */
-
-export async function getTeamStatusConfig(
-    db,
-    guildId
-) {
-    const saved =
-        await db.get(
-            TEAM_STATUS_KEY(guildId),
-            null
-        );
+export async function getTeamStatusConfig(db, guildId) {
+    const saved = await db.get(
+        TEAM_STATUS_KEY(guildId),
+        null
+    );
 
     if (!saved || typeof saved !== 'object') {
         return getDefaultConfig();
@@ -65,19 +53,11 @@ export async function saveTeamStatusConfig(
     );
 }
 
-/* -------------------------------------------------------------------------- */
-/*                              TOURNAMENTS                                   */
-/* -------------------------------------------------------------------------- */
-
-async function getTournaments(
-    client,
-    guildId
-) {
-    const tournaments =
-        await client.db.get(
-            TOURNAMENTS_KEY(guildId),
-            []
-        );
+async function getTournaments(client, guildId) {
+    const tournaments = await client.db.get(
+        TOURNAMENTS_KEY(guildId),
+        []
+    );
 
     if (!Array.isArray(tournaments)) {
         return [];
@@ -87,44 +67,46 @@ async function getTournaments(
 }
 
 /*
- * The tournament command stores the start time
- * as a Unix timestamp in `startAt`.
+ * A tournament only gets an automatic LIVE status when
+ * it has a genuine startAt timestamp.
  *
- * We automatically treat an upcoming tournament
- * as live once its start time has been reached.
+ * This deliberately prevents:
+ *
+ * Number(null) === 0
+ *
+ * from being interpreted as January 1st 1970.
  */
+function hasValidStartAt(tournament) {
+    const timestamp = Number(tournament?.startAt);
+
+    return (
+        Number.isFinite(timestamp) &&
+        timestamp > 0
+    );
+}
+
 function getEffectiveTournamentStatus(
     tournament,
     now
 ) {
-    if (
-        tournament.status === 'completed'
-    ) {
+    if (tournament?.status === 'completed') {
         return 'completed';
     }
 
-    if (
-        tournament.status === 'live'
-    ) {
+    if (tournament?.status === 'live') {
         return 'live';
     }
 
     if (
-        tournament.status === 'upcoming' &&
-        Number.isFinite(
-            Number(tournament.startAt)
-        ) &&
+        tournament?.status === 'upcoming' &&
+        hasValidStartAt(tournament) &&
         Number(tournament.startAt) <= now
     ) {
         return 'live';
     }
 
-    return tournament.status || 'upcoming';
+    return tournament?.status || 'upcoming';
 }
-
-/* -------------------------------------------------------------------------- */
-/*                              TEAM STATUS                                   */
-/* -------------------------------------------------------------------------- */
 
 function getOverallTeamStatus(
     tournaments,
@@ -137,12 +119,10 @@ function getOverallTeamStatus(
         };
     }
 
-    const hasLiveTournament =
-        tournaments.some(
-            tournament =>
-                tournament.effectiveStatus ===
-                'live'
-        );
+    const hasLiveTournament = tournaments.some(
+        tournament =>
+            tournament.effectiveStatus === 'live'
+    );
 
     if (hasLiveTournament) {
         return {
@@ -151,31 +131,23 @@ function getOverallTeamStatus(
         };
     }
 
-    const hasUpcomingTournament =
-        tournaments.some(
-            tournament =>
-                tournament.effectiveStatus ===
-                'upcoming'
-        );
+    const hasUpcomingTournament = tournaments.some(
+        tournament =>
+            tournament.effectiveStatus === 'upcoming'
+    );
 
     if (hasUpcomingTournament) {
         return {
-            label:
-                'UPCOMING COMPETITION',
+            label: 'UPCOMING COMPETITION',
             emoji: '🟡',
         };
     }
 
     return {
-        label:
-            'NO ACTIVE COMPETITION',
+        label: 'NO ACTIVE COMPETITION',
         emoji: '⚪',
     };
 }
-
-/* -------------------------------------------------------------------------- */
-/*                              ROSTER                                        */
-/* -------------------------------------------------------------------------- */
 
 function getRosterMembers(
     guild,
@@ -225,26 +197,136 @@ function buildRosterSection(
         );
 
     return [
-        '👑 **MANAGEMENT**',
+        '👑 **Management**',
         management.length
-            ? management.join('\n')
+            ? management.join(' • ')
             : 'None added yet.',
         '',
-        '⚔️ **MAIN LINEUP**',
+        '⚔️ **Main Lineup**',
         main.length
-            ? main.join('\n')
+            ? main.join(' • ')
             : 'None added yet.',
         '',
-        '🔄 **SUBSTITUTES**',
+        '🔄 **Substitutes**',
         subs.length
-            ? subs.join('\n')
+            ? subs.join(' • ')
             : 'None added yet.',
     ].join('\n');
 }
 
-/* -------------------------------------------------------------------------- */
-/*                              TOURNAMENT LIST                               */
-/* -------------------------------------------------------------------------- */
+function formatTournamentDate(
+    tournament
+) {
+    if (!tournament?.date) {
+        return '📅 **Date TBC**';
+    }
+
+    return `📅 **${tournament.date}**`;
+}
+
+function formatTournamentTime(
+    tournament
+) {
+    if (!tournament?.time) {
+        return '🕐 **Time TBC**';
+    }
+
+    if (tournament?.timezone) {
+        return `🕐 **${tournament.time} ${tournament.timezone}**`;
+    }
+
+    return `🕐 **${tournament.time}**`;
+}
+
+function formatTournamentTiming(
+    tournament
+) {
+    const hasDate = Boolean(
+        tournament?.date
+    );
+
+    const hasTime = Boolean(
+        tournament?.time
+    );
+
+    /*
+     * If there is a real start timestamp,
+     * Discord can provide a live relative countdown.
+     */
+    if (hasValidStartAt(tournament)) {
+        const timestamp =
+            Number(tournament.startAt);
+
+        if (
+            tournament.effectiveStatus ===
+            'live'
+        ) {
+            return `🟢 **LIVE** • Started <t:${timestamp}:R>`;
+        }
+
+        return `🟡 **UPCOMING** • Starts <t:${timestamp}:R>`;
+    }
+
+    /*
+     * No valid timestamp means we must rely
+     * on the date/time fields themselves.
+     */
+    if (
+        tournament.effectiveStatus ===
+        'live'
+    ) {
+        return '🟢 **LIVE**';
+    }
+
+    const timing = [];
+
+    if (hasDate) {
+        timing.push(
+            formatTournamentDate(
+                tournament
+            )
+        );
+    } else {
+        timing.push(
+            '📅 **Date TBC**'
+        );
+    }
+
+    if (hasTime) {
+        timing.push(
+            formatTournamentTime(
+                tournament
+            )
+        );
+    } else {
+        timing.push(
+            '🕐 **Time TBC**'
+        );
+    }
+
+    return `🟡 **UPCOMING**\n${timing.join(
+        ' • '
+    )}`;
+}
+
+function formatTournament(
+    tournament
+) {
+    const format =
+        tournament?.format
+            ? `\n🎮 ${tournament.format}`
+            : '';
+
+    return [
+        `🏆 **${tournament.name || 'Unnamed Tournament'}**`,
+        formatTournamentTiming(
+            tournament
+        ),
+        format,
+    ]
+        .filter(Boolean)
+        .join('\n');
+}
 
 function buildTournamentSection(
     tournaments
@@ -256,26 +338,44 @@ function buildTournamentSection(
                     tournament.effectiveStatus !==
                     'completed'
             )
-            .sort(
-                (a, b) => {
-                    const aTime =
-                        Number(a.startAt);
+            .sort((a, b) => {
+                const aHasTime =
+                    hasValidStartAt(a);
 
-                    const bTime =
-                        Number(b.startAt);
+                const bHasTime =
+                    hasValidStartAt(b);
 
-                    if (
-                        Number.isFinite(aTime) &&
-                        Number.isFinite(bTime)
-                    ) {
-                        return (
-                            aTime - bTime
-                        );
-                    }
-
-                    return 0;
+                /*
+                 * Tournaments with known start times
+                 * are placed before tournaments where
+                 * the date/time is still unknown.
+                 */
+                if (
+                    aHasTime &&
+                    bHasTime
+                ) {
+                    return (
+                        Number(a.startAt) -
+                        Number(b.startAt)
+                    );
                 }
-            )
+
+                if (
+                    aHasTime &&
+                    !bHasTime
+                ) {
+                    return -1;
+                }
+
+                if (
+                    !aHasTime &&
+                    bHasTime
+                ) {
+                    return 1;
+                }
+
+                return 0;
+            })
             .slice(0, 8);
 
     if (!active.length) {
@@ -283,57 +383,9 @@ function buildTournamentSection(
     }
 
     return active
-        .map(tournament => {
-            const status =
-                tournament.effectiveStatus ===
-                'live'
-                    ? '🟢 LIVE'
-                    : '🟡 UPCOMING';
-
-            const format =
-                tournament.format
-                    ? ` • ${tournament.format}`
-                    : '';
-
-            if (
-                Number.isFinite(
-                    Number(tournament.startAt)
-                )
-            ) {
-                const timestamp =
-                    Number(
-                        tournament.startAt
-                    );
-
-                if (
-                    tournament.effectiveStatus ===
-                    'live'
-                ) {
-                    return [
-                        `🏆 **${tournament.name}**`,
-                        `${status}${format}`,
-                        `Started <t:${timestamp}:R>`,
-                    ].join('\n');
-                }
-
-                return [
-                    `🏆 **${tournament.name}**`,
-                    `${status}${format}`,
-                    `Starts <t:${timestamp}:R>`,
-                ].join('\n');
-            }
-
-            return [
-                `🏆 **${tournament.name}**`,
-                `${status}${format}`,
-            ].join('\n');
-        })
+        .map(formatTournament)
         .join('\n\n');
 }
-
-/* -------------------------------------------------------------------------- */
-/*                              DASHBOARD                                     */
-/* -------------------------------------------------------------------------- */
 
 export function buildTeamStatusDashboard(
     guild,
@@ -352,25 +404,17 @@ export function buildTeamStatusDashboard(
                 '⚔️ CYBER KNIGHTS — TEAM STATUS'
             )
             .setDescription(
-                'Cyber Knights — Competitive TH18 Clash of Clans esports team.'
+                [
+                    `${teamStatus.emoji} **${teamStatus.label}**`,
+                    '',
+                    config.matchActive
+                        ? '🔴 **Match:** Active'
+                        : '🟢 **Match:** No active match',
+                ].join('\n')
             )
             .addFields(
                 {
-                    name: 'TEAM STATUS',
-                    value:
-                        `${teamStatus.emoji} **${teamStatus.label}**`,
-                    inline: false,
-                },
-                {
-                    name: '⚔️ MATCH STATUS',
-                    value:
-                        config.matchActive
-                            ? '🟢 **ACTIVE**'
-                            : '🔴 **NO ACTIVE MATCH**',
-                    inline: true,
-                },
-                {
-                    name: '🏆 COMPETITION',
+                    name: '🏆 COMPETITIONS',
                     value:
                         buildTournamentSection(
                             tournaments
@@ -394,10 +438,6 @@ export function buildTeamStatusDashboard(
 
     return embed;
 }
-
-/* -------------------------------------------------------------------------- */
-/*                              DASHBOARD UPDATE                              */
-/* -------------------------------------------------------------------------- */
 
 async function updateTeamStatus(
     client,
@@ -495,12 +535,6 @@ async function updateTeamStatus(
             processedTournaments
         );
 
-    /*
-     * Compare the new embed against the
-     * existing embed. This prevents Discord
-     * from receiving an edit every minute
-     * when nothing has actually changed.
-     */
     const newEmbed =
         JSON.stringify(
             embed.toJSON()
@@ -513,7 +547,13 @@ async function updateTeamStatus(
               )
             : null;
 
-    if (newEmbed === oldEmbed) {
+    /*
+     * Do not edit the Discord message unless
+     * something has actually changed.
+     */
+    if (
+        newEmbed === oldEmbed
+    ) {
         return;
     }
 
@@ -522,21 +562,21 @@ async function updateTeamStatus(
     });
 }
 
-/* -------------------------------------------------------------------------- */
-/*                              CRON UPDATE                                   */
-/* -------------------------------------------------------------------------- */
-
 export async function updateAllTeamStatuses(
     client
 ) {
-    if (!client?.isReady()) {
+    if (
+        !client?.isReady()
+    ) {
         return;
     }
 
     const guilds =
         client.guilds.cache;
 
-    for (const guild of guilds.values()) {
+    for (
+        const guild of guilds.values()
+    ) {
         try {
             await updateTeamStatus(
                 client,
