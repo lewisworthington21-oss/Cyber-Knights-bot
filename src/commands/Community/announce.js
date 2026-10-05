@@ -7,30 +7,38 @@ import {
 
 const ANNOUNCEMENT_COLOUR = 0x2f80ed;
 
+const CYBER_KNIGHTS_LOGO =
+    'https://cdn.discordapp.com/attachments/1551328297055682692/1554627911926161469/FF973EB2-E985-4773-9333-D6D7DEB19C42.png?backend=b2&ex=6ac57c91&is=6ac42b11&hm=14e26b83ea58b8631ac8ff3b91fb829589b2bdb298e4c734f295a7df5ea518be';
+
 const TYPE_CONFIG = {
     tournament: {
-        label: 'Tournament',
         emoji: '🏆',
+        title: 'TOURNAMENT UPDATE',
     },
+
     match: {
-        label: 'Match',
         emoji: '⚔️',
+        title: 'MATCH UPDATE',
     },
+
     team: {
-        label: 'Team',
         emoji: '🛡️',
+        title: 'TEAM UPDATE',
     },
+
     roster: {
-        label: 'Roster',
         emoji: '👥',
+        title: 'ROSTER UPDATE',
     },
+
     practice: {
-        label: 'Practice',
         emoji: '🎯',
+        title: 'PRACTICE SESSION',
     },
+
     general: {
-        label: 'General',
         emoji: '📢',
+        title: 'CYBER KNIGHTS UPDATE',
     },
 };
 
@@ -38,6 +46,7 @@ const data = new SlashCommandBuilder()
     .setName('announce')
     .setDescription('Create a professional Cyber Knights announcement')
 
+    // Required options MUST come before optional options.
     .addStringOption(option =>
         option
             .setName('type')
@@ -117,7 +126,7 @@ const data = new SlashCommandBuilder()
     .addStringOption(option =>
         option
             .setName('link')
-            .setDescription('Optional website or tournament link')
+            .setDescription('Optional tournament or information link')
             .setRequired(false)
     )
 
@@ -189,6 +198,7 @@ function convertDateTimeToUnix(
     const year = Number(dateMatch[1]);
     const month = Number(dateMatch[2]);
     const day = Number(dateMatch[3]);
+
     const hour = Number(timeMatch[1]);
     const minute = Number(timeMatch[2]);
 
@@ -254,55 +264,32 @@ function convertDateTimeToUnix(
     );
 }
 
-function buildTimestamp(unix) {
-    if (
-        !unix ||
-        !Number.isFinite(Number(unix))
-    ) {
+function buildDiscordTimestamp(
+    date,
+    time,
+    timezone
+) {
+    const unix =
+        convertDateTimeToUnix(
+            date,
+            time,
+            timezone
+        );
+
+    if (!unix) {
         return null;
     }
 
-    const timestamp = Number(unix);
-
-    return `<t:${timestamp}:F>\n<t:${timestamp}:R>`;
+    return `<t:${unix}:F>\n<t:${unix}:R>`;
 }
 
-function buildDetails({
-    type,
+function buildWhenField(
     date,
     time,
-    timezone,
-    format,
-    prize,
-}) {
-    const fields = [];
-
-    if (type === 'tournament') {
-        if (format) {
-            fields.push({
-                name: '⚔️ Format',
-                value: format,
-                inline: true,
-            });
-        }
-
-        if (prize) {
-            fields.push({
-                name: '💰 Prize',
-                value: prize,
-                inline: true,
-            });
-        }
-    }
-
-    if (type === 'match') {
-        if (format) {
-            fields.push({
-                name: '⚔️ Format',
-                value: format,
-                inline: true,
-            });
-        }
+    timezone
+) {
+    if (!date && !time) {
+        return null;
     }
 
     if (
@@ -310,102 +297,306 @@ function buildDetails({
         time &&
         timezone
     ) {
-        const unix =
-            convertDateTimeToUnix(
-                date,
-                time,
-                timezone
-            );
-
-        const timestamp =
-            buildTimestamp(unix);
-
-        if (timestamp) {
-            fields.push({
-                name: '📅 When',
-                value: timestamp,
-                inline: false,
-            });
-        }
+        return buildDiscordTimestamp(
+            date,
+            time,
+            timezone
+        );
     }
 
-    return fields;
+    if (date && !time) {
+        return `📅 ${date}\n🕐 Time TBC`;
+    }
+
+    if (time && !date) {
+        return `🕐 ${time}\n📅 Date TBC`;
+    }
+
+    return '📅 Date/time TBC';
 }
 
-function buildAnnouncementContent({
-    type,
+function buildTournamentEmbed({
     message,
+    date,
+    time,
+    timezone,
+    format,
+    prize,
+    link,
 }) {
-    const config =
-        TYPE_CONFIG[type] ||
-        TYPE_CONFIG.general;
+    const embed =
+        new EmbedBuilder()
+            .setColor(ANNOUNCEMENT_COLOUR)
+            .setAuthor({
+                name: 'CYBER KNIGHTS',
+                iconURL: CYBER_KNIGHTS_LOGO,
+            })
+            .setTitle('🏆 TOURNAMENT UPDATE')
+            .setThumbnail(
+                CYBER_KNIGHTS_LOGO
+            )
+            .setDescription(message);
 
-    let title = message;
-    let description = message;
-    let callToAction = null;
-
-    if (type === 'tournament') {
-        title = 'Tournament Update';
-
-        description =
-            `Cyber Knights have an important tournament update.\n\n${message}`;
-
-        callToAction =
-            'Keep an eye on the server for further tournament and match information.';
+    if (format) {
+        embed.addFields({
+            name: '⚔️ FORMAT',
+            value: format,
+            inline: true,
+        });
     }
 
-    if (type === 'match') {
-        title = 'Match Update';
-
-        description =
-            `Cyber Knights match information.\n\n${message}`;
-
-        callToAction =
-            'Players involved should be ready and available at the required time.';
+    if (prize) {
+        embed.addFields({
+            name: '💰 PRIZE',
+            value: prize,
+            inline: true,
+        });
     }
 
-    if (type === 'team') {
-        title = 'Team Update';
+    const when =
+        buildWhenField(
+            date,
+            time,
+            timezone
+        );
 
-        description =
-            `An important update for the Cyber Knights team.\n\n${message}`;
-
-        callToAction =
-            'Please make sure you have read and understood the information above.';
+    if (when) {
+        embed.addFields({
+            name: '📅 WHEN',
+            value: when,
+            inline: false,
+        });
     }
 
-    if (type === 'roster') {
-        title = 'Roster Update';
-
-        description =
-            `There has been an update to the Cyber Knights roster.\n\n${message}`;
-
-        callToAction =
-            'Please check the current roster and team channels for any further information.';
+    if (link) {
+        embed.addFields({
+            name: '🔗 TOURNAMENT LINK',
+            value: `[Open Tournament Information](${link})`,
+            inline: false,
+        });
     }
 
-    if (type === 'practice') {
-        title = 'Practice Session';
+    embed.addFields({
+        name: '➡️ NEXT STEP',
+        value:
+            'Keep an eye on the server for further tournament and match information.',
+        inline: false,
+    });
 
-        description =
-            `Cyber Knights practice information.\n\n${message}`;
+    return embed;
+}
 
-        callToAction =
-            'Players should be ready to join and prepared to practice.';
+function buildMatchEmbed({
+    message,
+    date,
+    time,
+    timezone,
+    format,
+    link,
+}) {
+    const embed =
+        new EmbedBuilder()
+            .setColor(ANNOUNCEMENT_COLOUR)
+            .setAuthor({
+                name: 'CYBER KNIGHTS',
+                iconURL: CYBER_KNIGHTS_LOGO,
+            })
+            .setTitle('⚔️ MATCH UPDATE')
+            .setThumbnail(
+                CYBER_KNIGHTS_LOGO
+            )
+            .setDescription(message);
+
+    if (format) {
+        embed.addFields({
+            name: '⚔️ FORMAT',
+            value: format,
+            inline: true,
+        });
     }
 
-    if (type === 'general') {
-        title = 'Cyber Knights Update';
+    const when =
+        buildWhenField(
+            date,
+            time,
+            timezone
+        );
 
-        description = message;
+    if (when) {
+        embed.addFields({
+            name: '📅 WHEN',
+            value: when,
+            inline: false,
+        });
     }
 
-    return {
-        title,
-        description,
-        callToAction,
-        emoji: config.emoji,
-    };
+    if (link) {
+        embed.addFields({
+            name: '🔗 MATCH INFORMATION',
+            value: `[Open Match Information](${link})`,
+            inline: false,
+        });
+    }
+
+    embed.addFields({
+        name: '➡️ TEAM PREPARATION',
+        value:
+            'Players involved should be available and ready at the required time.',
+        inline: false,
+    });
+
+    return embed;
+}
+
+function buildPracticeEmbed({
+    message,
+    date,
+    time,
+    timezone,
+    format,
+}) {
+    const embed =
+        new EmbedBuilder()
+            .setColor(ANNOUNCEMENT_COLOUR)
+            .setAuthor({
+                name: 'CYBER KNIGHTS',
+                iconURL: CYBER_KNIGHTS_LOGO,
+            })
+            .setTitle('🎯 PRACTICE SESSION')
+            .setThumbnail(
+                CYBER_KNIGHTS_LOGO
+            )
+            .setDescription(message);
+
+    const when =
+        buildWhenField(
+            date,
+            time,
+            timezone
+        );
+
+    if (when) {
+        embed.addFields({
+            name: '📅 WHEN',
+            value: when,
+            inline: false,
+        });
+    }
+
+    if (format) {
+        embed.addFields({
+            name: '🎮 SESSION',
+            value: format,
+            inline: true,
+        });
+    }
+
+    embed.addFields({
+        name: '➡️ PREPARATION',
+        value:
+            'Please be ready to join and prepared for the session.',
+        inline: false,
+    });
+
+    return embed;
+}
+
+function buildRosterEmbed({
+    message,
+    link,
+}) {
+    const embed =
+        new EmbedBuilder()
+            .setColor(ANNOUNCEMENT_COLOUR)
+            .setAuthor({
+                name: 'CYBER KNIGHTS',
+                iconURL: CYBER_KNIGHTS_LOGO,
+            })
+            .setTitle('👥 ROSTER UPDATE')
+            .setThumbnail(
+                CYBER_KNIGHTS_LOGO
+            )
+            .setDescription(message);
+
+    if (link) {
+        embed.addFields({
+            name: '🔗 MORE INFORMATION',
+            value: `[Open Information](${link})`,
+            inline: false,
+        });
+    }
+
+    embed.addFields({
+        name: '➡️ NEXT STEP',
+        value:
+            'Please check the current team channels for any further information.',
+        inline: false,
+    });
+
+    return embed;
+}
+
+function buildTeamEmbed({
+    message,
+    link,
+}) {
+    const embed =
+        new EmbedBuilder()
+            .setColor(ANNOUNCEMENT_COLOUR)
+            .setAuthor({
+                name: 'CYBER KNIGHTS',
+                iconURL: CYBER_KNIGHTS_LOGO,
+            })
+            .setTitle('🛡️ TEAM UPDATE')
+            .setThumbnail(
+                CYBER_KNIGHTS_LOGO
+            )
+            .setDescription(message);
+
+    if (link) {
+        embed.addFields({
+            name: '🔗 MORE INFORMATION',
+            value: `[Open Information](${link})`,
+            inline: false,
+        });
+    }
+
+    embed.addFields({
+        name: '➡️ NEXT STEP',
+        value:
+            'Please make sure you have read and understood the information above.',
+        inline: false,
+    });
+
+    return embed;
+}
+
+function buildGeneralEmbed({
+    message,
+    link,
+}) {
+    const embed =
+        new EmbedBuilder()
+            .setColor(ANNOUNCEMENT_COLOUR)
+            .setAuthor({
+                name: 'CYBER KNIGHTS',
+                iconURL: CYBER_KNIGHTS_LOGO,
+            })
+            .setTitle('📢 CYBER KNIGHTS UPDATE')
+            .setThumbnail(
+                CYBER_KNIGHTS_LOGO
+            )
+            .setDescription(message);
+
+    if (link) {
+        embed.addFields({
+            name: '🔗 MORE INFORMATION',
+            value: `[Open Information](${link})`,
+            inline: false,
+        });
+    }
+
+    return embed;
 }
 
 function buildAnnouncementEmbed({
@@ -418,64 +609,56 @@ function buildAnnouncementEmbed({
     format,
     prize,
 }) {
-    const config =
-        TYPE_CONFIG[type] ||
-        TYPE_CONFIG.general;
+    switch (type) {
+        case 'tournament':
+            return buildTournamentEmbed({
+                message,
+                date,
+                time,
+                timezone,
+                format,
+                prize,
+                link,
+            });
 
-    const content =
-        buildAnnouncementContent({
-            type,
-            message,
-        });
+        case 'match':
+            return buildMatchEmbed({
+                message,
+                date,
+                time,
+                timezone,
+                format,
+                link,
+            });
 
-    const embed =
-        new EmbedBuilder()
-            .setColor(ANNOUNCEMENT_COLOUR)
-            .setAuthor({
-                name: 'CYBER KNIGHTS',
-            })
-            .setTitle(
-                `${config.emoji} ${content.title}`
-            )
-            .setDescription(
-                content.description
-            );
+        case 'practice':
+            return buildPracticeEmbed({
+                message,
+                date,
+                time,
+                timezone,
+                format,
+            });
 
-    const details =
-        buildDetails({
-            type,
-            date,
-            time,
-            timezone,
-            format,
-            prize,
-        });
+        case 'roster':
+            return buildRosterEmbed({
+                message,
+                link,
+            });
 
-    if (details.length > 0) {
-        embed.addFields(details);
+        case 'team':
+            return buildTeamEmbed({
+                message,
+                link,
+            });
+
+        case 'general':
+        default:
+            return buildGeneralEmbed({
+                message,
+                link,
+            });
     }
-
-    if (link) {
-        embed.addFields({
-            name: '🔗 More Information',
-            value: `[Open Link](${link})`,
-            inline: false,
-        });
-    }
-
-    if (content.callToAction) {
-        embed.addFields({
-            name: '➡️ Next Step',
-            value: content.callToAction,
-            inline: false,
-        });
-    }
-
-    embed.setFooter({
-        text: 'Cyber Knights • Competitive TH18 Esports',
-    });
-
-    return embed;
 }
 
 async function execute(interaction) {
@@ -597,22 +780,7 @@ async function execute(interaction) {
             });
         }
 
-        if (link) {
-            try {
-                new URL(link);
-            } catch {
-                return interaction.editReply({
-                    content:
-                        '❌ The link provided is not a valid URL.',
-                });
-            }
-        }
-
-        if (
-            date &&
-            time &&
-            timezone
-        ) {
+        if (date && time && timezone) {
             const unix =
                 convertDateTimeToUnix(
                     date,
@@ -624,6 +792,17 @@ async function execute(interaction) {
                 return interaction.editReply({
                     content:
                         '❌ I could not understand that date/time combination.\n\nUse:\n`date: 2026-10-12`\n`time: 20:30`\n`timezone: Europe/London`',
+                });
+            }
+        }
+
+        if (link) {
+            try {
+                new URL(link);
+            } catch {
+                return interaction.editReply({
+                    content:
+                        '❌ The link provided is not a valid URL.',
                 });
             }
         }
